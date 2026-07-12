@@ -1,0 +1,9 @@
+#include <stdio.h>
+
+#define ARG_COUNT 2;
+
+int main (int argc,char** args){
+  printf("%s,%s",args[1],args[2]);
+  return 0;
+  
+}
