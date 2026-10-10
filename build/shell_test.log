@@ -1,0 +1,369 @@
+
+os_learn stage shell
+Buddy memory + callable processes + cooperative MLFQ
+Type help for commands, or demo for a scheduling walkthrough.
+os> help
+help                         show commands
+echo [words...]              print words
+mem                          inspect buddy memory
+alloc ORDER / free ID|all    allocate/release a tracked buddy block
+ps / show PID                inspect processes and saved registers
+queues                       inspect MLFQ queues and budgets
+spawn cpu|yield|sleep [N]     create callable job (1..1024 steps)
+run                          execute queued kernel jobs until idle
+wake PID|all                 wake sleeping jobs
+kill PID|all                 request termination; run to finish it
+reap PID|all                 reclaim zombie resources
+exit PID [CODE]              mark a non-running process exited
+boost / tick [N]             boost priorities / advance test clock
+image init|alt               create a saved user image
+fork PID                     deep-copy a user-image process
+exec PID init|alt [args...]   replace a saved user image
+demo                         queue 3 CPU jobs and a sleeping job, then run
+quit                         power off QEMU
+Editing: backspace, Ctrl-U clear, Ctrl-C cancel, Ctrl-D quit.
+User images support lifecycle inspection; run executes callable jobs.
+os> ps
+PID PARENT KIND STATE LEVEL SLICE BUDGET KILLED EXIT NAME
+processes=0
+os> mem
+pages total=2048 free=2048 used=0 page_size=4096
+  order=11 blocks=1
+os> unknown
+unknown command; use help
+error -1: invalid argument
+os> spawn
+wrong argument count; use help
+error -1: invalid argument
+os> spawn cpu 0
+error -1: invalid argument
+os> spawn cpu -1
+error -1: invalid argument
+os> spawn cpu 18446744073709551616
+error -1: invalid argument
+os> alloc 12
+error -1: invalid argument
+os> alloc 11
+block id=1 address=0x80029000 bytes=8388608
+os> mem
+pages total=2048 free=0 used=2048 page_size=4096
+os> spawn cpu 1
+error -2: no free memory or process/job slots
+os> free all
+freed blocks=1
+os> mem
+pages total=2048 free=2048 used=0 page_size=4096
+  order=11 blocks=1
+os> spawn cpu 6
+spawned pid=1 name=cpu steps=6
+os> spawn yield 3
+spawned pid=2 name=yield steps=3
+os> spawn sleep 2
+spawned pid=3 name=sleep steps=2
+os> reap all
+reaped=0
+os> reap 1
+error -4: operation requires an idle or exited process
+os> ps
+PID PARENT KIND STATE LEVEL SLICE BUDGET KILLED EXIT NAME
+1 0 kernel RUNNABLE 0 1 2 0 0 cpu
+2 0 kernel RUNNABLE 0 1 2 0 0 yield
+3 0 kernel RUNNABLE 0 1 2 0 0 sleep
+processes=3
+os> queues
+ticks=0 boost_interval=64
+level=0 quantum=1 allotment=2 ready=3 pids: 1 2 3
+level=1 quantum=2 allotment=4 ready=0 pids:
+level=2 quantum=4 allotment=8 ready=0 pids:
+level=3 quantum=8 allotment=16 ready=0 pids:
+os> run
+job 1 step=1 level=0 budget=2
+job 2 step=1 level=0 budget=2
+job 3 sleeping
+job 1 step=2 level=0 budget=1
+job 2 step=2 level=0 budget=1
+job 1 step=3 level=1 budget=4
+job 1 step=4 level=1 budget=3
+job 2 step=3 level=1 budget=4
+job 1 step=5 level=1 budget=2
+job 1 step=6 level=1 budget=1
+job 2 done
+job 1 done
+scheduler idle
+os> show 1
+pid=1 state=ZOMBIE exit=0
+pc=0x0 user_sp=0x0 a0=0 a1=0x0
+kernel_stack=0x80029000 started=1 active=0 result_tag=16 result=0
+mapped_pages=0
+os> show 3
+pid=3 state=SLEEPING exit=0
+pc=0x0 user_sp=0x0 a0=0 a1=0x0
+kernel_stack=0x8002b000 started=1 active=1 result_tag=0
+mapped_pages=0
+os> wake 3
+woken=1
+os> run
+job 3 woke
+job 3 step=1 level=0 budget=2
+job 3 step=2 level=0 budget=1
+job 3 done
+scheduler idle
+os> reap all
+reaped=3
+os> mem
+pages total=2048 free=2048 used=0 page_size=4096
+  order=11 blocks=1
+os> spawn sleep 2
+spawned pid=4 name=sleep steps=2
+os> run
+job 4 sleeping
+scheduler idle
+os> kill 4
+kill requested=1
+os> run
+scheduler idle
+os> show 4
+pid=4 state=ZOMBIE exit=-1
+pc=0x0 user_sp=0x0 a0=0 a1=0x0
+kernel_stack=0x80029000 started=1 active=0 result_tag=0
+mapped_pages=0
+os> reap 4
+reaped=1
+os> kill 4
+error -3: process not found or already exited
+os> image init
+image pid=5 name=init
+os> fork 5
+fork child=6 parent=5
+os> show 5
+pid=5 state=RUNNABLE exit=0
+pc=0x1000 user_sp=0x3ffff0 a0=6 a1=0x3ffff0
+kernel_stack=0x80029000 started=0 active=0 result_tag=0
+mapped_pages=3
+  va=0x1000 physical=0x8002a000 perms=r-x
+  va=0x2000 physical=0x8002b000 perms=rw-
+  va=0x3ff000 physical=0x8002c000 perms=rw-
+os> show 6
+pid=6 state=RUNNABLE exit=0
+pc=0x1000 user_sp=0x3ffff0 a0=0 a1=0x3ffff0
+kernel_stack=0x8002d000 started=0 active=0 result_tag=0
+mapped_pages=3
+  va=0x1000 physical=0x8002e000 perms=r-x
+  va=0x2000 physical=0x8002f000 perms=rw-
+  va=0x3ff000 physical=0x80030000 perms=rw-
+os> exec 6 alt hello world
+exec pid=6 name=alt argc=2 entry=0x1002
+os> show 6
+pid=6 state=RUNNABLE exit=0
+pc=0x1002 user_sp=0x3fffd0 a0=2 a1=0x3fffd0
+kernel_stack=0x8002d000 started=0 active=0 result_tag=0
+mapped_pages=3
+  va=0x1000 physical=0x80031000 perms=r-x
+  va=0x2000 physical=0x80032000 perms=rw-
+  va=0x3ff000 physical=0x80033000 perms=rw-
+os> run
+error -8: user-image execution/kernel fork is unavailable
+os> kill all
+kill requested=2
+os> run
+scheduler idle
+os> reap all
+reaped=2
+os> mem
+pages total=2048 free=2048 used=0 page_size=4096
+  order=11 blocks=1
+os> spawn sleep 1
+spawned pid=7 name=sleep steps=1
+os> run
+job 7 sleeping
+scheduler idle
+os> exit 7 -2147483648
+exited pid=7 code=-2147483648
+os> show 7
+pid=7 state=ZOMBIE exit=-2147483648
+pc=0x0 user_sp=0x0 a0=0 a1=0x0
+kernel_stack=0x80029000 started=1 active=0 result_tag=0
+mapped_pages=0
+os> reap all
+reaped=1
+os> boost
+priorities boosted
+os> tick 64
+ticks=75
+os> memx 
+pages total=2048 free=2048 used=0 page_size=4096
+  order=11 blocks=1
+os> garbage       mem
+pages total=2048 free=2048 used=0 page_size=4096
+  order=11 blocks=1
+os> ignored^C
+os> zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+error: line too long (maximum 255 characters)
+os> echo one two three
+one two three
+os> echo x x x x x x x x x x x x
+error -7: too many or oversized arguments
+os> mem
+pages total=2048 free=2048 used=0 page_size=4096
+  order=11 blocks=1
+os> demo
+spawned pid=8 name=cpu steps=6
+spawned pid=9 name=cpu steps=6
+spawned pid=10 name=cpu steps=6
+spawned pid=11 name=sleep steps=2
+job 8 step=1 level=0 budget=2
+job 9 step=1 level=0 budget=2
+job 10 step=1 level=0 budget=2
+job 11 sleeping
+job 8 step=2 level=0 budget=1
+job 9 step=2 level=0 budget=1
+job 10 step=2 level=0 budget=1
+job 8 step=3 level=1 budget=4
+job 8 step=4 level=1 budget=3
+job 9 step=3 level=1 budget=4
+job 9 step=4 level=1 budget=3
+job 10 step=3 level=1 budget=4
+job 10 step=4 level=1 budget=3
+job 8 step=5 level=1 budget=2
+job 8 step=6 level=1 budget=1
+job 9 step=5 level=1 budget=2
+job 9 step=6 level=1 budget=1
+job 10 step=5 level=1 budget=2
+job 10 step=6 level=1 budget=1
+job 8 done
+job 9 done
+job 10 done
+scheduler idle
+Demo: ps; wake all; run; reap all; mem
+os> ps
+PID PARENT KIND STATE LEVEL SLICE BUDGET KILLED EXIT NAME
+8 0 kernel ZOMBIE 2 4 8 0 0 cpu
+9 0 kernel ZOMBIE 2 4 8 0 0 cpu
+10 0 kernel ZOMBIE 2 4 8 0 0 cpu
+11 0 kernel SLEEPING 0 1 2 0 0 sleep
+processes=4
+os> wake all
+woken=1
+os> run
+job 11 woke
+job 11 step=1 level=0 budget=2
+job 11 step=2 level=0 budget=1
+job 11 done
+scheduler idle
+os> reap all
+reaped=4
+os> mem
+pages total=2048 free=2048 used=0 page_size=4096
+  order=11 blocks=1
+os> spawn cpu 1
+spawned pid=12 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=13 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=14 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=15 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=16 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=17 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=18 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=19 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=20 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=21 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=22 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=23 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=24 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=25 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=26 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=27 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=28 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=29 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=30 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=31 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=32 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=33 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=34 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=35 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=36 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=37 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=38 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=39 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=40 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=41 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=42 name=cpu steps=1
+os> spawn cpu 1
+spawned pid=43 name=cpu steps=1
+os> spawn cpu 1
+error -2: no free memory or process/job slots
+os> ps
+PID PARENT KIND STATE LEVEL SLICE BUDGET KILLED EXIT NAME
+12 0 kernel RUNNABLE 0 1 2 0 0 cpu
+13 0 kernel RUNNABLE 0 1 2 0 0 cpu
+14 0 kernel RUNNABLE 0 1 2 0 0 cpu
+15 0 kernel RUNNABLE 0 1 2 0 0 cpu
+16 0 kernel RUNNABLE 0 1 2 0 0 cpu
+17 0 kernel RUNNABLE 0 1 2 0 0 cpu
+18 0 kernel RUNNABLE 0 1 2 0 0 cpu
+19 0 kernel RUNNABLE 0 1 2 0 0 cpu
+20 0 kernel RUNNABLE 0 1 2 0 0 cpu
+21 0 kernel RUNNABLE 0 1 2 0 0 cpu
+22 0 kernel RUNNABLE 0 1 2 0 0 cpu
+23 0 kernel RUNNABLE 0 1 2 0 0 cpu
+24 0 kernel RUNNABLE 0 1 2 0 0 cpu
+25 0 kernel RUNNABLE 0 1 2 0 0 cpu
+26 0 kernel RUNNABLE 0 1 2 0 0 cpu
+27 0 kernel RUNNABLE 0 1 2 0 0 cpu
+28 0 kernel RUNNABLE 0 1 2 0 0 cpu
+29 0 kernel RUNNABLE 0 1 2 0 0 cpu
+30 0 kernel RUNNABLE 0 1 2 0 0 cpu
+31 0 kernel RUNNABLE 0 1 2 0 0 cpu
+32 0 kernel RUNNABLE 0 1 2 0 0 cpu
+33 0 kernel RUNNABLE 0 1 2 0 0 cpu
+34 0 kernel RUNNABLE 0 1 2 0 0 cpu
+35 0 kernel RUNNABLE 0 1 2 0 0 cpu
+36 0 kernel RUNNABLE 0 1 2 0 0 cpu
+37 0 kernel RUNNABLE 0 1 2 0 0 cpu
+38 0 kernel RUNNABLE 0 1 2 0 0 cpu
+39 0 kernel RUNNABLE 0 1 2 0 0 cpu
+40 0 kernel RUNNABLE 0 1 2 0 0 cpu
+41 0 kernel RUNNABLE 0 1 2 0 0 cpu
+42 0 kernel RUNNABLE 0 1 2 0 0 cpu
+43 0 kernel RUNNABLE 0 1 2 0 0 cpu
+processes=32
+os> kill all
+kill requested=32
+os> run
+scheduler idle
+os> reap all
+reaped=32
+os> mem
+pages total=2048 free=2048 used=0 page_size=4096
+  order=11 blocks=1
+os> quit
+bye
