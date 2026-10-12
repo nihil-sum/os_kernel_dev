@@ -32,7 +32,7 @@
   在同一 tick 发生预算耗尽和 boost 时，boost 的新预算生效。
 
 `mlfq_init` 接受自定义 `mlfq_config`；时间片必须大于零，配额不得小于时间片。
-`boost_interval = 0` 可禁用周期 boost。总 tick 计数饱和于 `UINT64_MAX`；
+`boost_interval = 0` 可禁用周期 boost。总 tick 计数饱和于 `U64_MAX`；
 boost 使用单独的周期计数，因此不依赖总 tick 计数回绕。
 
 ## 生命周期接入
@@ -66,7 +66,7 @@ boost 使用单独的周期计数，因此不依赖总 tick 计数回绕。
 ```c
 static struct mlfq scheduler;
 
-static int32_t worker(void *arg) {
+static i32_t worker(void *arg) {
     unsigned int *work_done = arg;
     for (unsigned int i = 0; i < 8; i++) {
         ++*work_done;
@@ -84,7 +84,7 @@ struct callable entry = callable_from_fni32p(worker, &work_done);
 struct proc *process;
 if (mlfq_init(&scheduler, &table, NULL) == 0) {
     if (proc_create_callable(&table, "worker", &entry, &process) == 0) {
-        uint64_t pid = process->pid;
+        u64_t pid = process->pid;
         if (mlfq_run(&scheduler) == 0 && process->pstatus == ZOMBIE)
             (void)proc_reap(&table, pid);
     }

@@ -5,7 +5,7 @@
 #define UART_RX_READY 0x01u
 #define UART_TX_READY 0x20u
 
-static volatile unsigned char *const uart = (void *)(uintptr_t)QEMU_UART_BASE;
+static volatile unsigned char *const uart = (void *)(uptr_t)QEMU_UART_BASE;
 
 static void raw_putc(char ch) {
         while ((uart[UART_LSR] & UART_TX_READY) == 0) {}
@@ -21,9 +21,9 @@ void console_puts(const char *text) {
         while (*text != '\0') console_putc(*text++);
 }
 
-void console_u64(uint64_t value) {
+void console_u64(u64_t value) {
         char digits[20];
-        size_t count = 0;
+        ksize_t count = 0;
         do {
                 digits[count++] = (char)('0' + value % 10);
                 value /= 10;
@@ -31,14 +31,14 @@ void console_u64(uint64_t value) {
         while (count != 0) console_putc(digits[--count]);
 }
 
-void console_i64(int64_t value) {
+void console_i64(i64_t value) {
         if (value < 0) {
                 console_putc('-');
-                console_u64((uint64_t)(-(value + 1)) + 1);
-        } else console_u64((uint64_t)value);
+                console_u64((u64_t)(-(value + 1)) + 1);
+        } else console_u64((u64_t)value);
 }
 
-void console_hex(uint64_t value) {
+void console_hex(u64_t value) {
         const char *digits = "0123456789abcdef";
         console_puts("0x");
         int shift = 60;
@@ -51,10 +51,10 @@ static unsigned char getc_blocking(void) {
         return uart[0];
 }
 
-int console_readline(char *line, size_t size) {
+int console_readline(char *line, ksize_t size) {
         static int skip_lf;
         if (line == NULL || size == 0) return -1;
-        size_t count = 0;
+        ksize_t count = 0;
         int overflow = 0;
         for (;;) {
                 unsigned char ch = getc_blocking();
@@ -72,7 +72,7 @@ int console_readline(char *line, size_t size) {
                 if (ch == 3) {
                         console_puts("^C\n");
                         line[0] = '\0';
-                        return 0;
+                        return 2;
                 }
                 if (ch == 21) {
                         while (count != 0) { console_puts("\b \b"); count--; }
@@ -95,7 +95,7 @@ int console_readline(char *line, size_t size) {
 }
 
 _Noreturn void console_shutdown(int failed) {
-        volatile unsigned int *test = (void *)(uintptr_t)QEMU_TEST_BASE;
+        volatile unsigned int *test = (void *)(uptr_t)QEMU_TEST_BASE;
         *test = failed ? 0x3333u : 0x5555u;
         for (;;) __asm__ volatile("wfi");
 }

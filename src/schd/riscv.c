@@ -1,9 +1,9 @@
 #include "mlfq.h"
 
-_Static_assert(sizeof(struct context) == 14 * sizeof(uint64_t), "swtch context size");
-_Static_assert(offsetof(struct context, ra) == 0, "swtch ra offset");
-_Static_assert(offsetof(struct context, sp) == 8, "swtch sp offset");
-_Static_assert(offsetof(struct context, s11) == 104, "swtch s11 offset");
+_Static_assert(sizeof(struct context) == 14 * sizeof(u64_t), "swtch context size");
+_Static_assert(K_OFFSETOF(struct context, ra) == 0, "swtch ra offset");
+_Static_assert(K_OFFSETOF(struct context, sp) == 8, "swtch sp offset");
+_Static_assert(K_OFFSETOF(struct context, s11) == 104, "swtch s11 offset");
 
 /* The current backend is single-hart, with no nested scheduler loops. */
 static struct mlfq *active;
@@ -36,7 +36,7 @@ int mlfq_run(struct mlfq *s) {
                         break;
                 }
                 if (!p->schedule.context_ready) {
-                        p->ctx.ra = (uintptr_t)entry_trampoline;
+                        p->ctx.ra = (uptr_t)entry_trampoline;
                         p->schedule.context_ready = 1;
                 }
                 s->pending = MLFQ_YIELD;

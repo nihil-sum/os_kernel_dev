@@ -1,7 +1,7 @@
 #ifndef LIST_H
 #define LIST_H
 
-#include <stddef.h>
+#include "ktypes.h"
 
 /* Nodes and their data are owned by the caller; the list never allocates. */
 struct node {
@@ -10,7 +10,7 @@ struct node {
 	struct node *prev;
 };
 struct list_meta {
-	size_t len;
+	ksize_t len;
 	struct node *head;
 	struct node *tail;
 };

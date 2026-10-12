@@ -55,18 +55,18 @@ int mlfq_init(struct mlfq *s, struct proc_table *table,
                 return PROC_EINVAL;
         if (table->current != NULL || table->scheduler != NULL) return PROC_EBUSY;
         struct mlfq_config chosen = config == NULL ? mlfq_default_config : *config;
-        for (size_t i = 0; i < MLFQ_LEVELS; i++)
+        for (ksize_t i = 0; i < MLFQ_LEVELS; i++)
                 if (chosen.quantum[i] == 0 || chosen.allotment[i] < chosen.quantum[i])
                         return PROC_EINVAL;
-        for (size_t i = 0; i < PROC_MAX; i++) {
+        for (ksize_t i = 0; i < PROC_MAX; i++) {
                 struct proc *p = &table->entries[i];
                 if (p->pstatus == RUNNING || p->pstatus == USED || p->entry_active)
                         return PROC_EBUSY;
         }
         *s = (struct mlfq){ .table = table, .config = chosen };
-        for (size_t i = 0; i < MLFQ_LEVELS; i++) list_init(&s->queues[i]);
+        for (ksize_t i = 0; i < MLFQ_LEVELS; i++) list_init(&s->queues[i]);
         table->scheduler = s;
-        for (size_t i = 0; i < PROC_MAX; i++) {
+        for (ksize_t i = 0; i < PROC_MAX; i++) {
                 struct proc *p = &table->entries[i];
                 if (p->pstatus == RUNNABLE || p->pstatus == SLEEPING) {
                         enum state original = p->pstatus;
@@ -83,11 +83,11 @@ int mlfq_init(struct mlfq *s, struct proc_table *table,
 int mlfq_destroy(struct mlfq *s) {
         if (!valid(s)) return PROC_EINVAL;
         if (s->driver_active || s->table->current != NULL) return PROC_EBUSY;
-        for (size_t i = 0; i < PROC_MAX; i++)
+        for (ksize_t i = 0; i < PROC_MAX; i++)
                 if (s->table->entries[i].entry_active ||
                     (s->table->entries[i].schedule.owner == s &&
                      s->table->entries[i].pstatus == SLEEPING)) return PROC_EBUSY;
-        for (size_t i = 0; i < PROC_MAX; i++) {
+        for (ksize_t i = 0; i < PROC_MAX; i++) {
                 struct proc *p = &s->table->entries[i];
                 if (p->schedule.owner != s) continue;
                 remove_ready(s, p);
@@ -101,7 +101,7 @@ int mlfq_destroy(struct mlfq *s) {
 int mlfq_dispatch(struct mlfq *s, struct proc **out) {
         if (!valid(s) || out == NULL) return PROC_EINVAL;
         if (s->table->current != NULL || s->in_process) return PROC_EBUSY;
-        for (size_t level = 0; level < MLFQ_LEVELS; level++) {
+        for (ksize_t level = 0; level < MLFQ_LEVELS; level++) {
                 struct node *node;
                 while ((node = list_pop_front(&s->queues[level])) != NULL) {
                         struct proc *p = node->data;
@@ -173,7 +173,7 @@ int mlfq_should_reschedule(const struct mlfq *s) {
         if (p->schedule.owner != s) return PROC_EINVAL;
         if (p->killed || p->pstatus == ZOMBIE || s->reschedule ||
             p->schedule.slice_left == 0 || p->schedule.budget_left == 0) return 1;
-        for (size_t i = 0; i < p->schedule.level; i++)
+        for (ksize_t i = 0; i < p->schedule.level; i++)
                 if (!list_empty(&s->queues[i])) return 1;
         return 0;
 }
@@ -185,7 +185,7 @@ int mlfq_boost(struct mlfq *s) {
          */
         struct list_meta gathered;
         list_init(&gathered);
-        for (size_t i = 0; i < MLFQ_LEVELS; i++) {
+        for (ksize_t i = 0; i < MLFQ_LEVELS; i++) {
                 struct node *node;
                 while ((node = list_pop_front(&s->queues[i])) != NULL) {
                         struct proc *p = node->data;
@@ -193,7 +193,7 @@ int mlfq_boost(struct mlfq *s) {
                         list_push_back(&gathered, node);
                 }
         }
-        for (size_t i = 0; i < PROC_MAX; i++) {
+        for (ksize_t i = 0; i < PROC_MAX; i++) {
                 struct proc *p = &s->table->entries[i];
                 if (p->schedule.owner != s || p->pstatus == ZOMBIE) continue;
                 p->schedule.level = 0;
@@ -213,7 +213,7 @@ int mlfq_tick(struct mlfq *s) {
         if (!valid(s)) return PROC_EINVAL;
         struct proc *p = s->table->current;
         if (p != NULL && p->schedule.owner != s) return PROC_EINVAL;
-        if (s->ticks != UINT64_MAX) s->ticks++;
+        if (s->ticks != U64_MAX) s->ticks++;
         if (p != NULL && p->pstatus == RUNNING) {
                 if (p->schedule.slice_left != 0) p->schedule.slice_left--;
                 if (p->schedule.budget_left != 0) p->schedule.budget_left--;
@@ -229,7 +229,7 @@ int mlfq_tick(struct mlfq *s) {
 int mlfq_wakeup(struct mlfq *s, const void *channel) {
         if (!valid(s) || channel == NULL) return PROC_EINVAL;
         int count = 0;
-        for (size_t i = 0; i < PROC_MAX; i++) {
+        for (ksize_t i = 0; i < PROC_MAX; i++) {
                 struct proc *p = &s->table->entries[i];
                 if (p->schedule.owner != s || p->pstatus != SLEEPING ||
                     p->schedule.wait_channel != channel) continue;

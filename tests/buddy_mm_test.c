@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <string.h>
 
-static struct block block_at(uintptr_t address, int order) {
+static struct block block_at(uptr_t address, int order) {
 	struct block block = {.addr = address, .order = order};
 	return block;
 }
@@ -15,12 +15,12 @@ static void same_block(struct block actual, struct block expected) {
 
 static void round_trips(const struct buddy_arena *arena) {
 	for (int order = 1; order <= BUDDY_MAX_ORDER; order++) {
-		size_t bytes = (size_t)BUDDY_PAGE_SIZE << order;
+		ksize_t bytes = (ksize_t)BUDDY_PAGE_SIZE << order;
 		/* Check both ends, with a base that is not aligned to larger
 		 * orders. */
-		uintptr_t addresses[] = {arena->base,
+		uptr_t addresses[] = {arena->base,
 					 arena->base + arena->size - bytes};
-		for (size_t i = 0; i < 2; i++) {
+		for (ksize_t i = 0; i < 2; i++) {
 			struct block original = block_at(addresses[i], order);
 			struct block left, right, buddy, parent;
 			assert(buddy_split(arena, &original, &left, &right) ==
@@ -111,7 +111,7 @@ static void failures(const struct buddy_arena *arena) {
 
 	first = block_at(arena->base, BUDDY_MAX_ORDER);
 	second = block_at(arena->base +
-				  ((size_t)BUDDY_PAGE_SIZE << BUDDY_MAX_ORDER),
+				  ((ksize_t)BUDDY_PAGE_SIZE << BUDDY_MAX_ORDER),
 			  BUDDY_MAX_ORDER);
 	assert(buddy_combine(arena, &first, &second, &left) ==
 	       BUDDY_INVALID_ORDER);
@@ -134,7 +134,7 @@ static void failures(const struct buddy_arena *arena) {
 	assert(buddy_get_buddy(&bad, &input, &left) == BUDDY_INVALID_ARGUMENT);
 	bad.size = 0;
 	assert(buddy_get_buddy(&bad, &input, &left) == BUDDY_INVALID_ARGUMENT);
-	bad.base = UINTPTR_MAX - (BUDDY_PAGE_SIZE - 1);
+	bad.base = UPTR_MAX - (BUDDY_PAGE_SIZE - 1);
 	bad.size = BUDDY_PAGE_SIZE;
 	input = block_at(bad.base, 0);
 	assert(buddy_get_buddy(&bad, &input, &left) == BUDDY_OUT_OF_RANGE);
@@ -147,11 +147,11 @@ static void initialization(void) {
 	static struct buddy_page pages[CAPACITY + 1];
 	static unsigned char covered[CAPACITY];
 	struct buddy_allocator allocator;
-	const size_t counts[] = {
+	const ksize_t counts[] = {
 		1, 2, 3, 13, 31, 32, 33, 1 << BUDDY_MAX_ORDER, CAPACITY};
-	for (size_t test = 0; test < sizeof(counts) / sizeof(counts[0]);
+	for (ksize_t test = 0; test < sizeof(counts) / sizeof(counts[0]);
 	     test++) {
-		size_t count = counts[test];
+		ksize_t count = counts[test];
 		struct buddy_arena arena = {.base = BUDDY_PAGE_SIZE,
 					    .size = count * BUDDY_PAGE_SIZE};
 		pages[count].order = 123;
@@ -168,22 +168,22 @@ static void initialization(void) {
 		for (int order = 0; order <= BUDDY_MAX_ORDER; order++) {
 			struct list_meta *list = &allocator.free_lists[order];
 			struct node *previous = NULL;
-			size_t blocks = 0;
+			ksize_t blocks = 0;
 			for (struct node *node = list->head; node != NULL;
 			     node = node->next) {
 				assert(++blocks <=
 				       count); /* Detect a cycle without
 						  hanging. */
 				struct buddy_page *page = node->data;
-				size_t index = (size_t)(page - pages);
-				size_t span = (size_t)1 << order;
+				ksize_t index = (ksize_t)(page - pages);
+				ksize_t span = (ksize_t)1 << order;
 				assert(index < count && span <= count - index);
 				assert(index % span == 0);
 				assert(page->state == BUDDY_PAGE_FREE &&
 				       page->order == order);
 				assert(node == &page->free_node &&
 				       node->prev == previous);
-				for (size_t i = index; i < index + span; i++) {
+				for (ksize_t i = index; i < index + span; i++) {
 					assert(covered[i] == 0);
 					covered[i] = 1;
 					if (i != index) {
@@ -196,7 +196,7 @@ static void initialization(void) {
 							       .prev == NULL);
 					}
 				}
-				size_t buddy_index = index ^ span;
+				ksize_t buddy_index = index ^ span;
 				if (order < BUDDY_MAX_ORDER &&
 				    buddy_index < count) {
 					assert(pages[buddy_index].state !=
@@ -208,7 +208,7 @@ static void initialization(void) {
 			}
 			assert(previous == list->tail && blocks == list->len);
 		}
-		for (size_t i = 0; i < count; i++) {
+		for (ksize_t i = 0; i < count; i++) {
 			assert(covered[i] == 1);
 			assert(pages[i].free_node.data == &pages[i]);
 			assert(buddy_page_at(&allocator,
@@ -243,7 +243,7 @@ static void initialization(void) {
 	struct buddy_arena bad = {.base = 1, .size = BUDDY_PAGE_SIZE};
 	assert(buddy_init(&second, &bad, second_pages, 3) ==
 	       BUDDY_INVALID_ARGUMENT);
-	bad.base = UINTPTR_MAX - (BUDDY_PAGE_SIZE - 1);
+	bad.base = UPTR_MAX - (BUDDY_PAGE_SIZE - 1);
 	assert(buddy_init(&second, &bad, second_pages, 3) ==
 	       BUDDY_OUT_OF_RANGE);
 	assert(buddy_init(&second, NULL, second_pages, 3) ==
@@ -259,7 +259,7 @@ static void initialization(void) {
 
 int main(void) {
 	struct buddy_arena arena = {.base = BUDDY_PAGE_SIZE,
-				    .size = (size_t)BUDDY_PAGE_SIZE
+				    .size = (ksize_t)BUDDY_PAGE_SIZE
 					    << (BUDDY_MAX_ORDER + 1)};
 	round_trips(&arena);
 	failures(&arena);

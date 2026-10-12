@@ -3,20 +3,20 @@
 
 /* Check ordering and reciprocal links independently in both directions. */
 static void check(const struct list_meta *list, struct node **expected,
-		  size_t count) {
+		  ksize_t count) {
 	assert(list->len == count);
 	assert(list_empty(list) == (count == 0));
 	assert(list_front(list) == (count ? expected[0] : NULL));
 	assert(list_back(list) == (count ? expected[count - 1] : NULL));
 	struct node *node = list->head;
-	for (size_t i = 0; i < count; i++) {
+	for (ksize_t i = 0; i < count; i++) {
 		assert(node == expected[i]);
 		assert(node->prev == (i ? expected[i - 1] : NULL));
 		node = node->next;
 	}
 	assert(node == NULL);
 	node = list->tail;
-	for (size_t i = count; i > 0; i--) {
+	for (ksize_t i = count; i > 0; i--) {
 		assert(node == expected[i - 1]);
 		assert(node->next == (i < count ? expected[i] : NULL));
 		node = node->prev;

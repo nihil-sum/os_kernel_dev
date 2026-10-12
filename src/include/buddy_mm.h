@@ -2,23 +2,22 @@
 #define BUDDY_MM_H
 
 #include "list.h"
-#include <stddef.h>
-#include <stdint.h>
+#include "ktypes.h"
 
 #define BUDDY_PAGE_SIZE 4096u
 /* Inclusive: supported orders are 0 through BUDDY_MAX_ORDER. */
 #define BUDDY_MAX_ORDER 11
 /* The arena base and size passed to buddy_init() must be page-aligned. */
 #define BUDDY_ALIGN_UP(value)                                                  \
-	(((uintptr_t)(value) + BUDDY_PAGE_SIZE - 1) &                          \
-	 ~(uintptr_t)(BUDDY_PAGE_SIZE - 1))
-#define BUDDY_BLOCK_BYTES(order) ((size_t)BUDDY_PAGE_SIZE << (order))
+	(((uptr_t)(value) + BUDDY_PAGE_SIZE - 1) &                          \
+	 ~(uptr_t)(BUDDY_PAGE_SIZE - 1))
+#define BUDDY_BLOCK_BYTES(order) ((ksize_t)BUDDY_PAGE_SIZE << (order))
 
 /* A copyable description, with no ownership or list links.
  * A block spans BUDDY_PAGE_SIZE * 2^order bytes starting at addr.
  */
 struct block {
-	uintptr_t addr;
+	uptr_t addr;
 	int order;
 };
 
@@ -27,8 +26,8 @@ struct block {
  * need not have a power-of-two size; blocks must fit entirely inside it.
  */
 struct buddy_arena {
-	uintptr_t base;
-	size_t size;
+	uptr_t base;
+	ksize_t size;
 };
 
 enum buddy_page_state {
@@ -54,7 +53,7 @@ struct buddy_page {
 struct buddy_allocator {
 	struct buddy_arena arena;
 	struct buddy_page *pages;
-	size_t page_count;
+	ksize_t page_count;
 	struct list_meta free_lists[BUDDY_MAX_ORDER + 1];
 };
 
@@ -79,13 +78,13 @@ enum buddy_status {
  */
 enum buddy_status buddy_init(struct buddy_allocator *allocator,
 			     const struct buddy_arena *arena,
-			     struct buddy_page *pages, size_t page_capacity);
+			     struct buddy_page *pages, ksize_t page_capacity);
 
 /* Look up an exact page address in an initialized allocator. Returns NULL for
  * unaligned/out-of-range addresses. Inspect state before treating it as a head.
  */
 struct buddy_page *buddy_page_at(const struct buddy_allocator *allocator,
-				 uintptr_t addr);
+				 uptr_t addr);
 
 /* Allocate a block, splitting larger free blocks as needed. Output is
  * unchanged on failure. Memory contents are not initialized. Free requires

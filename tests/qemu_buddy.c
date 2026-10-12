@@ -1,7 +1,10 @@
 #include "buddy_mm.h"
+#include "kalloc.h"
 #include "qemu_virt.h"
 #include "syscall.h"
 #include "mlfq.h"
+#include "inode_test.h"
+#include "proc_fs_test.h"
 
 /* This smoke test manages one MiB after the kernel image. Metadata stays in
  * BSS and is excluded from the arena by __kernel_end.
@@ -21,7 +24,35 @@ static const struct proc_image images[] = {
 	{"init", program, sizeof(program), NULL, 0, 0, 0},
 };
 
-static int32_t kernel_entry(void *arg) {
+static int kalloc_check(void) {
+	const ksize_t sizes[] = {1, 16, 17, 32, 64, 128, 256, 512, 1024, 2048,
+				2049, 4096, 8192};
+	unsigned char *objects[sizeof(sizes) / sizeof(sizes[0])];
+	if (kalloc_init(&allocator) != KALLOC_OK || kalloc(0) != NULL ||
+	    kalloc(KSIZE_MAX) != NULL)
+		return -1;
+	for (ksize_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+		objects[i] = kalloc(sizes[i]);
+		if (objects[i] == NULL || (uptr_t)objects[i] % _Alignof(kmax_align_t) != 0)
+			return -1;
+		for (ksize_t j = 0; j < sizes[i]; j++)
+			objects[i][j] = (unsigned char)(i + 1);
+	}
+	if (kfree(objects[0] + 1) != KALLOC_NOT_ALLOCATED ||
+	    kalloc_init(&allocator) != KALLOC_BUSY)
+		return -1;
+	for (ksize_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+		for (ksize_t j = 0; j < sizes[i]; j++)
+			if (objects[i][j] != (unsigned char)(i + 1))
+				return -1;
+		if (kfree(objects[i]) != KALLOC_OK ||
+		    kfree(objects[i]) != KALLOC_NOT_ALLOCATED)
+			return -1;
+	}
+	return allocator.free_lists[8].len == 1 ? 0 : -1;
+}
+
+static i32_t kernel_entry(void *arg) {
 	unsigned int *calls = arg;
 	(*calls)++;
 	return 7;
@@ -37,7 +68,7 @@ static int callable_check(void) {
 	    worker->pstatus != ZOMBIE || worker->exit_status != 7 ||
 	    worker->result.tag != fi32p || worker->result.value.i32 != 7)
 		return -1;
-	uint64_t pid = worker->pid;
+	u64_t pid = worker->pid;
 	if (proc_deactivate(&processes) != 0 || proc_reap(&processes, pid) != 0 ||
 	    allocator.free_lists[8].len != 1)
 		return -1;
@@ -74,7 +105,7 @@ static int process_check(void) {
 	    proc_reap(&processes, child->pid) != 0 ||
 	    proc_activate(&processes, parent) != 0)
 		return -1;
-	uint64_t pid = parent->pid;
+	u64_t pid = parent->pid;
 	parent->tf.x[PROC_A7] = SYS_KILL;
 	parent->tf.x[PROC_A0] = pid;
 	if (syscall_dispatch(&processes) != SYSCALL_EXIT ||
@@ -91,11 +122,11 @@ struct scheduled_job {
 	int channel;
 };
 
-static int32_t cpu_job(void *arg) {
+static i32_t cpu_job(void *arg) {
 	struct scheduled_job *job = arg;
 	struct proc *p = processes.current;
-	volatile uint64_t stack_guard = UINT64_C(0x123456789abcdef0);
-	uintptr_t local = (uintptr_t)&stack_guard;
+	volatile u64_t stack_guard = U64_C(0x123456789abcdef0);
+	uptr_t local = (uptr_t)&stack_guard;
 	if (local < p->kstack.addr || local >= p->kstack.addr + BUDDY_PAGE_SIZE ||
 	    mlfq_run(&scheduler) != PROC_EBUSY ||
 	    mlfq_complete(&scheduler, MLFQ_YIELD, NULL) != PROC_EBUSY)
@@ -104,15 +135,15 @@ static int32_t cpu_job(void *arg) {
 		if (execution_count >= 32) return -2;
 		execution_order[execution_count++] = job->id;
 		if (mlfq_tick(&scheduler) < 0 || mlfq_checkpoint(&scheduler) != 0 ||
-		    stack_guard != UINT64_C(0x123456789abcdef0) || processes.current != p)
+		    stack_guard != U64_C(0x123456789abcdef0) || processes.current != p)
 			return -3;
 	}
-	return (int32_t)job->id;
+	return (i32_t)job->id;
 }
 
-static int32_t sleeping_job(void *arg) {
+static i32_t sleeping_job(void *arg) {
 	struct scheduled_job *job = arg;
-	volatile uint64_t guard = 1234;
+	volatile u64_t guard = 1234;
 	job->phase = 1;
 	if (mlfq_sleep(&scheduler, &job->channel) != 0 || guard != 1234)
 		return -1;
@@ -120,7 +151,7 @@ static int32_t sleeping_job(void *arg) {
 	return 0;
 }
 
-static int32_t waking_job(void *arg) {
+static i32_t waking_job(void *arg) {
 	struct scheduled_job *job = arg;
 	if (job->phase != 1 || mlfq_wakeup(&scheduler, &job->channel) != 1)
 		return -1;
@@ -135,17 +166,17 @@ static int scheduler_check(void) {
 	if (mlfq_init(&scheduler, &processes, &config) != 0) return -1;
 	struct scheduled_job jobs[3] = {{.id = 1}, {.id = 2}, {.id = 3}};
 	struct proc *workers[3];
-	for (size_t i = 0; i < 3; i++) {
+	for (ksize_t i = 0; i < 3; i++) {
 		struct callable entry = callable_from_fni32p(cpu_job, &jobs[i]);
 		if (proc_create_callable(&processes, "cpu-worker", &entry, &workers[i]) != 0)
 			return -1;
 	}
 	if (mlfq_run(&scheduler) != 0 || execution_count != 18) return -1;
-	for (size_t i = 0; i < 6; i++)
+	for (ksize_t i = 0; i < 6; i++)
 		if (execution_order[i] != i % 3 + 1) return -1;
-	for (size_t i = 6; i < 18; i++)
+	for (ksize_t i = 6; i < 18; i++)
 		if (execution_order[i] != ((i - 6) / 2) % 3 + 1) return -1;
-	for (size_t i = 0; i < 3; i++) {
+	for (ksize_t i = 0; i < 3; i++) {
 		if (workers[i]->pstatus != ZOMBIE || workers[i]->entry_active ||
 		    workers[i]->exit_status != (int)jobs[i].id ||
 		    proc_reap(&processes, workers[i]->pid) != 0)
@@ -159,7 +190,7 @@ static int scheduler_check(void) {
 	if (proc_create_callable(&processes, "waker", &entry, &workers[1]) != 0 ||
 	    mlfq_run(&scheduler) != 0 || sleeper.phase != 3)
 		return -1;
-	for (size_t i = 0; i < 2; i++)
+	for (ksize_t i = 0; i < 2; i++)
 		if (workers[i]->exit_status != 0 || proc_reap(&processes, workers[i]->pid) != 0)
 			return -1;
 	/* Return idle with a suspended stack, then resume in a later run. */
@@ -191,20 +222,20 @@ static int scheduler_check(void) {
 }
 
 static void uart_puts(const char *text) {
-	volatile unsigned char *uart = (void *)(uintptr_t)QEMU_UART_BASE;
+	volatile unsigned char *uart = (void *)(uptr_t)QEMU_UART_BASE;
 	while (*text)
 		*uart = (unsigned char)*text++;
 }
 
 static void qemu_exit(unsigned int code) {
-	volatile unsigned int *test = (void *)(uintptr_t)QEMU_TEST_BASE;
+	volatile unsigned int *test = (void *)(uptr_t)QEMU_TEST_BASE;
 	*test = code;
 	for (;;)
 		__asm__ volatile("wfi");
 }
 
 void kmain(void) {
-	uintptr_t base = BUDDY_ALIGN_UP(__kernel_end);
+	uptr_t base = BUDDY_ALIGN_UP(__kernel_end);
 	struct buddy_arena arena = {
 		.base = base,
 		.size = TEST_PAGES * BUDDY_PAGE_SIZE,
@@ -233,6 +264,45 @@ void kmain(void) {
 		goto fail;
 
 	uart_puts("BUDDY OK\r\n");
+	if (kalloc_check() != 0) {
+		uart_puts("KALLOC FAIL\r\n");
+		qemu_exit(0x3333);
+	}
+	uart_puts("KALLOC OK\r\n");
+	int inode_result = inode_test(&allocator);
+	if (inode_result != 0) {
+		char digits[16];
+		ksize_t count = 0;
+		uart_puts("INODE FAIL line ");
+		do {
+			digits[count++] = (char)('0' + inode_result % 10);
+			inode_result /= 10;
+		} while (inode_result != 0);
+		while (count != 0) {
+			char digit[] = {digits[--count], '\0'};
+			uart_puts(digit);
+		}
+		uart_puts("\r\n");
+		qemu_exit(0x3333);
+	}
+	uart_puts("INODE OK\r\n");
+	int proc_fs_result = proc_fs_test(&allocator);
+	if (proc_fs_result != 0) {
+		char digits[16];
+		ksize_t count = 0;
+		uart_puts("PROC FS FAIL line ");
+		do {
+			digits[count++] = (char)('0' + proc_fs_result % 10);
+			proc_fs_result /= 10;
+		} while (proc_fs_result != 0);
+		while (count != 0) {
+			char digit[] = {digits[--count], '\0'};
+			uart_puts(digit);
+		}
+		uart_puts("\r\n");
+		qemu_exit(0x3333);
+	}
+	uart_puts("PROC FS OK\r\n");
 	if (process_check() != 0) {
 		uart_puts("PROC FAIL\r\n");
 		qemu_exit(0x3333);

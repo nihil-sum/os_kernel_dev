@@ -1,7 +1,7 @@
 #ifndef CALLABLE_H
 #define CALLABLE_H
 
-#include <stdint.h>
+#include "ktypes.h"
 #include "status.h"
 
 /* V means no arguments; P means a borrowed void * context.
@@ -31,23 +31,23 @@ typedef enum {
 } CallableType;
 
 typedef void (*FN_V_V)(void *);
-typedef uint64_t (*FN_U64_V)(void);
+typedef u64_t (*FN_U64_V)(void);
 typedef void (*FN_V_V0)(void);
-typedef uint8_t (*FN_U8_V)(void);
-typedef uint8_t (*FN_U8_P)(void *);
-typedef uint16_t (*FN_U16_V)(void);
-typedef uint16_t (*FN_U16_P)(void *);
-typedef uint32_t (*FN_U32_V)(void);
-typedef uint32_t (*FN_U32_P)(void *);
-typedef uint64_t (*FN_U64_P)(void *);
-typedef int8_t (*FN_I8_V)(void);
-typedef int8_t (*FN_I8_P)(void *);
-typedef int16_t (*FN_I16_V)(void);
-typedef int16_t (*FN_I16_P)(void *);
-typedef int32_t (*FN_I32_V)(void);
-typedef int32_t (*FN_I32_P)(void *);
-typedef int64_t (*FN_I64_V)(void);
-typedef int64_t (*FN_I64_P)(void *);
+typedef u8_t (*FN_U8_V)(void);
+typedef u8_t (*FN_U8_P)(void *);
+typedef u16_t (*FN_U16_V)(void);
+typedef u16_t (*FN_U16_P)(void *);
+typedef u32_t (*FN_U32_V)(void);
+typedef u32_t (*FN_U32_P)(void *);
+typedef u64_t (*FN_U64_P)(void *);
+typedef i8_t (*FN_I8_V)(void);
+typedef i8_t (*FN_I8_P)(void *);
+typedef i16_t (*FN_I16_V)(void);
+typedef i16_t (*FN_I16_P)(void *);
+typedef i32_t (*FN_I32_V)(void);
+typedef i32_t (*FN_I32_P)(void *);
+typedef i64_t (*FN_I64_V)(void);
+typedef i64_t (*FN_I64_P)(void *);
 typedef void *(*FN_PTR_V)(void);
 typedef void *(*FN_PTR_P)(void *);
 
@@ -160,7 +160,7 @@ static inline struct callable callable_from_fnptrp(FN_PTR_P fn, void *arg) {
 }
 
 /* Invoke once. For a non-void return, result must point to a writable
- * object of exactly the callback's return type (e.g. int16_t or void *).
+ * object of exactly the callback's return type (e.g. i16_t or void *).
  * Void callbacks leave result untouched and accept a NULL result.
  * NULL callables/functions, unknown tags, and missing non-void results fail
  * without invocation or changing result. A zero-initialized callable is invalid.
@@ -181,7 +181,7 @@ static inline enum status callable_call(const struct callable *callable,
 	case fu64v:
 		if (!callable->fnu64v || !result)
 			return FAILED;
-		*(uint64_t *)result = callable->fnu64v();
+		*(u64_t *)result = callable->fnu64v();
 		return SUCCESS;
 	case fvv0:
 		if (!callable->fnvv0)
@@ -191,77 +191,77 @@ static inline enum status callable_call(const struct callable *callable,
 	case fu8v:
 		if (!callable->fnu8v || !result)
 			return FAILED;
-		*(uint8_t *)result = callable->fnu8v();
+		*(u8_t *)result = callable->fnu8v();
 		return SUCCESS;
 	case fu8p:
 		if (!callable->fnu8p || !result)
 			return FAILED;
-		*(uint8_t *)result = callable->fnu8p(callable->arg);
+		*(u8_t *)result = callable->fnu8p(callable->arg);
 		return SUCCESS;
 	case fu16v:
 		if (!callable->fnu16v || !result)
 			return FAILED;
-		*(uint16_t *)result = callable->fnu16v();
+		*(u16_t *)result = callable->fnu16v();
 		return SUCCESS;
 	case fu16p:
 		if (!callable->fnu16p || !result)
 			return FAILED;
-		*(uint16_t *)result = callable->fnu16p(callable->arg);
+		*(u16_t *)result = callable->fnu16p(callable->arg);
 		return SUCCESS;
 	case fu32v:
 		if (!callable->fnu32v || !result)
 			return FAILED;
-		*(uint32_t *)result = callable->fnu32v();
+		*(u32_t *)result = callable->fnu32v();
 		return SUCCESS;
 	case fu32p:
 		if (!callable->fnu32p || !result)
 			return FAILED;
-		*(uint32_t *)result = callable->fnu32p(callable->arg);
+		*(u32_t *)result = callable->fnu32p(callable->arg);
 		return SUCCESS;
 	case fu64p:
 		if (!callable->fnu64p || !result)
 			return FAILED;
-		*(uint64_t *)result = callable->fnu64p(callable->arg);
+		*(u64_t *)result = callable->fnu64p(callable->arg);
 		return SUCCESS;
 	case fi8v:
 		if (!callable->fni8v || !result)
 			return FAILED;
-		*(int8_t *)result = callable->fni8v();
+		*(i8_t *)result = callable->fni8v();
 		return SUCCESS;
 	case fi8p:
 		if (!callable->fni8p || !result)
 			return FAILED;
-		*(int8_t *)result = callable->fni8p(callable->arg);
+		*(i8_t *)result = callable->fni8p(callable->arg);
 		return SUCCESS;
 	case fi16v:
 		if (!callable->fni16v || !result)
 			return FAILED;
-		*(int16_t *)result = callable->fni16v();
+		*(i16_t *)result = callable->fni16v();
 		return SUCCESS;
 	case fi16p:
 		if (!callable->fni16p || !result)
 			return FAILED;
-		*(int16_t *)result = callable->fni16p(callable->arg);
+		*(i16_t *)result = callable->fni16p(callable->arg);
 		return SUCCESS;
 	case fi32v:
 		if (!callable->fni32v || !result)
 			return FAILED;
-		*(int32_t *)result = callable->fni32v();
+		*(i32_t *)result = callable->fni32v();
 		return SUCCESS;
 	case fi32p:
 		if (!callable->fni32p || !result)
 			return FAILED;
-		*(int32_t *)result = callable->fni32p(callable->arg);
+		*(i32_t *)result = callable->fni32p(callable->arg);
 		return SUCCESS;
 	case fi64v:
 		if (!callable->fni64v || !result)
 			return FAILED;
-		*(int64_t *)result = callable->fni64v();
+		*(i64_t *)result = callable->fni64v();
 		return SUCCESS;
 	case fi64p:
 		if (!callable->fni64p || !result)
 			return FAILED;
-		*(int64_t *)result = callable->fni64p(callable->arg);
+		*(i64_t *)result = callable->fni64p(callable->arg);
 		return SUCCESS;
 	case fptrv:
 		if (!callable->fnptrv || !result)
@@ -317,14 +317,14 @@ static inline int callable_valid(const struct callable *callable) {
 struct callable_result {
 	CallableType tag;
 	union {
-		uint8_t u8;
-		uint16_t u16;
-		uint32_t u32;
-		uint64_t u64;
-		int8_t i8;
-		int16_t i16;
-		int32_t i32;
-		int64_t i64;
+		u8_t u8;
+		u16_t u16;
+		u32_t u32;
+		u64_t u64;
+		i8_t i8;
+		i16_t i16;
+		i32_t i32;
+		i64_t i64;
 		void *ptr;
 	} value;
 };

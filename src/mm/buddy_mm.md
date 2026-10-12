@@ -55,7 +55,7 @@ The redesign replaces `block.head` with `block.addr` and `MAX_ORDER` with
 Run the tests from the repository root:
 
 ```sh
-cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc/include src/list.c src/buddy_mm.c tests/buddy_mm_test.c -o /tmp/os_learn_buddy_test
+cc -std=c11 -Wall -Wextra -Werror -pedantic -Isrc/include src/types/list.c src/mm/buddy_mm.c tests/buddy_mm_test.c -o /tmp/os_learn_buddy_test
 /tmp/os_learn_buddy_test
 ```
 

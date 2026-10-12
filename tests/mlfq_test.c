@@ -14,8 +14,8 @@ static const unsigned char code[] = {0x73, 0, 0, 0};
 static const struct proc_image images[] = {{"test", code, sizeof(code), NULL, 0, 0, 0}};
 static int channel;
 
-static void fixture(uint64_t boost) {
-        struct buddy_arena arena = {(uintptr_t)memory, sizeof(memory)};
+static void fixture(u64_t boost) {
+        struct buddy_arena arena = {(uptr_t)memory, sizeof(memory)};
         assert(buddy_init(&allocator, &arena, pages, TEST_PAGES) == BUDDY_OK);
         assert(proc_table_init(&table, &allocator, images, 1) == 0);
         struct mlfq_config config = mlfq_default_config;
@@ -38,10 +38,10 @@ static struct proc *dispatch(void) {
 }
 
 static void check_queues(void) {
-        size_t total = 0;
-        for (size_t level = 0; level < MLFQ_LEVELS; level++) {
+        ksize_t total = 0;
+        for (ksize_t level = 0; level < MLFQ_LEVELS; level++) {
                 const struct list_meta *queue = &scheduler.queues[level];
-                size_t count = 0;
+                ksize_t count = 0;
                 struct node *prev = NULL;
                 for (struct node *node = queue->head; node != NULL; node = node->next) {
                         assert(++count <= PROC_MAX && node->prev == prev);
@@ -54,8 +54,8 @@ static void check_queues(void) {
                 assert(count == queue->len && prev == queue->tail);
                 total += count;
         }
-        size_t marked = 0;
-        for (size_t i = 0; i < PROC_MAX; i++) {
+        ksize_t marked = 0;
+        for (ksize_t i = 0; i < PROC_MAX; i++) {
                 const struct proc *p = &table.entries[i];
                 if (p->schedule.owner == &scheduler && p->pstatus == RUNNABLE)
                         assert(p->schedule.queued);
@@ -69,7 +69,7 @@ static void cleanup(void) {
                 assert(proc_exit(&table, table.current, 0) == 0);
                 assert(mlfq_complete(&scheduler, MLFQ_EXIT, NULL) == 0);
         }
-        for (size_t i = 0; i < PROC_MAX; i++) {
+        for (ksize_t i = 0; i < PROC_MAX; i++) {
                 struct proc *p = &table.entries[i];
                 if (p->pstatus == UNUSED) continue;
                 if (p->pstatus != ZOMBIE) assert(proc_exit(&table, p, 0) == 0);
@@ -99,11 +99,11 @@ static void round_robin_and_demotion(void) {
         assert(proc_exit(&table, b, 0) == 0 && mlfq_complete(&scheduler, MLFQ_EXIT, NULL) == 0);
         for (unsigned int expected = 2; expected <= MLFQ_LEVELS; expected++) {
                 unsigned int level = expected - 1;
-                uint64_t budget = scheduler.config.allotment[level];
+                u64_t budget = scheduler.config.allotment[level];
                 while (budget > 0) {
                         assert(dispatch() == a);
-                        uint64_t slice = a->schedule.slice_left;
-                        for (uint64_t i = 0; i < slice; i++) {
+                        u64_t slice = a->schedule.slice_left;
+                        for (u64_t i = 0; i < slice; i++) {
                                 int request = mlfq_tick(&scheduler);
                                 assert(request == (i + 1 == slice));
                         }
@@ -183,8 +183,8 @@ static void boosts(void) {
         assert(a->schedule.budget_left == 2); /* Boost wins over exhaustion. */
         cleanup();
         fixture(0);
-        scheduler.ticks = UINT64_MAX;
-        assert(mlfq_tick(&scheduler) == 0 && scheduler.ticks == UINT64_MAX);
+        scheduler.ticks = U64_MAX;
+        assert(mlfq_tick(&scheduler) == 0 && scheduler.ticks == U64_MAX);
         cleanup();
 }
 
@@ -197,7 +197,7 @@ static void lifecycle(void) {
         struct proc *child = proc_find(&table, a->tf.x[PROC_A0]);
         assert(child != NULL && child->schedule.queued && child->schedule.level == 0);
         assert(mlfq_tick(&scheduler) == 1);
-        uint64_t budget = a->schedule.budget_left;
+        u64_t budget = a->schedule.budget_left;
         assert(proc_exec(&table, a, "test", 0, NULL) == 0);
         assert(a->schedule.budget_left == budget); /* Exec cannot reset CPU usage. */
         assert(proc_kill(&table, child->pid) == 0 && scheduler.queues[0].len == 1);
@@ -205,7 +205,7 @@ static void lifecycle(void) {
         assert(dispatch() == a); /* Dispatch discards the killed queued child. */
         assert(child->pstatus == ZOMBIE && !child->schedule.queued);
         struct proc *old_slot = child;
-        uint64_t old_pid = child->pid;
+        u64_t old_pid = child->pid;
         assert(proc_reap(&table, old_pid) == 0);
         child = create();
         assert(child == old_slot && child->pid != old_pid);
@@ -225,7 +225,7 @@ static void lifecycle(void) {
 static void manual_boost_and_multiple_wakeup(void) {
         fixture(0);
         struct proc *a = create();
-        for (size_t i = 0; i < 2; i++) {
+        for (ksize_t i = 0; i < 2; i++) {
                 assert(dispatch() == a && mlfq_tick(&scheduler) == 1);
                 assert(mlfq_complete(&scheduler, MLFQ_PREEMPT, NULL) == 0);
         }

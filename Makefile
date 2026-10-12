@@ -6,7 +6,7 @@ SHELL_KERNEL := build/shell.elf
 INCLUDE_DIR := src/include
 CPPFLAGS += -I$(INCLUDE_DIR)
 
-CFLAGS := -std=c11 -O2 -Wall -Wextra -Werror -ffreestanding -fno-builtin \
+CFLAGS := -std=c11 -O2 -Wall -Wextra -Werror -ffreestanding -fno-builtin -nostdinc \
 	-fno-stack-protector -fno-pic -msmall-data-limit=0 -mcmodel=medany \
 	-march=rv64imac -mabi=lp64
 LDFLAGS := -nostdlib -static -no-pie -Wl,-T,src/qemu_virt.ld \
@@ -16,49 +16,60 @@ LDFLAGS := -nostdlib -static -no-pie -Wl,-T,src/qemu_virt.ld \
 all: $(KERNEL) $(SHELL_KERNEL)
 shell: $(SHELL_KERNEL)
 
-PROC_SOURCES := src/proc/proc.c src/proc/syscall.c
+PROC_SOURCES := src/proc/proc.c src/proc/proc_fs.c src/proc/syscall.c
 SCHED_SOURCES := src/schd/mlfq.c
 RISCV_SCHED_SOURCES := src/schd/riscv.c src/asm/swtch.s
-KERNEL_SOURCES := src/asm/boot.S src/buddy_mm.c src/list.c src/string.c \
-	$(PROC_SOURCES) $(SCHED_SOURCES) $(RISCV_SCHED_SOURCES)
-SHELL_SOURCES := src/qemu_shell.c src/console.c src/ks.c
+MM_SOURCES := src/mm/buddy_mm.c src/mm/kalloc.c
+FS_SOURCES := src/fs/inode.c src/fs/fs.c src/utils/mkfs.c
+LIST_SOURCE := src/types/list.c
+KERNEL_SOURCES := src/asm/boot.S $(MM_SOURCES) $(LIST_SOURCE) src/types/string.c \
+	$(PROC_SOURCES) $(SCHED_SOURCES) $(RISCV_SCHED_SOURCES) $(FS_SOURCES)
+SHELL_SOURCES := src/utils/shell/qemu_shell.c src/utils/shell/console.c src/utils/shell/ks.c \
+	src/utils/shell/shell_fs.c src/utils/shell/editor.c
 HEADERS := $(wildcard $(INCLUDE_DIR)/*.h)
 HOST_CC ?= cc
 PYTHON ?= python3
 HOST_CFLAGS := -std=c11 -O2 -Wall -Wextra -Werror -pedantic
-TESTS := build/list_test build/buddy_test build/callable_test build/proc_test build/mlfq_test
+TESTS := build/list_test build/buddy_test build/kalloc_test build/callable_test build/proc_test build/mlfq_test
 
-$(KERNEL): $(KERNEL_SOURCES) tests/qemu_buddy.c src/qemu_virt.ld $(HEADERS) Makefile
+KERNEL_TESTS := tests/qemu_buddy.c tests/inode_test.c tests/proc_fs_test.c
+
+$(KERNEL): $(KERNEL_SOURCES) $(KERNEL_TESTS) tests/inode_test.h tests/proc_fs_test.h src/qemu_virt.ld $(HEADERS) Makefile
 	@mkdir -p build
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(KERNEL_SOURCES) tests/qemu_buddy.c -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(KERNEL_SOURCES) $(KERNEL_TESTS) -o $@
 
 $(SHELL_KERNEL): $(KERNEL_SOURCES) $(SHELL_SOURCES) src/qemu_virt.ld $(HEADERS) Makefile
 	@mkdir -p build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(KERNEL_SOURCES) $(SHELL_SOURCES) -o $@
 
-build/list_test: src/list.c tests/list_test.c $(HEADERS) Makefile
+build/list_test: $(LIST_SOURCE) tests/list_test.c $(HEADERS) Makefile
 	@mkdir -p build
-	$(HOST_CC) $(CPPFLAGS) $(HOST_CFLAGS) src/list.c tests/list_test.c -o $@
+	$(HOST_CC) $(CPPFLAGS) $(HOST_CFLAGS) $(LIST_SOURCE) tests/list_test.c -o $@
 
-build/buddy_test: src/list.c src/buddy_mm.c tests/buddy_mm_test.c $(HEADERS) Makefile
+build/buddy_test: $(LIST_SOURCE) src/mm/buddy_mm.c tests/buddy_mm_test.c $(HEADERS) Makefile
 	@mkdir -p build
-	$(HOST_CC) $(CPPFLAGS) $(HOST_CFLAGS) src/list.c src/buddy_mm.c tests/buddy_mm_test.c -o $@
+	$(HOST_CC) $(CPPFLAGS) $(HOST_CFLAGS) $(LIST_SOURCE) src/mm/buddy_mm.c tests/buddy_mm_test.c -o $@
+
+build/kalloc_test: $(LIST_SOURCE) $(MM_SOURCES) tests/kalloc_test.c $(HEADERS) Makefile
+	@mkdir -p build
+	$(HOST_CC) $(CPPFLAGS) $(HOST_CFLAGS) $(LIST_SOURCE) $(MM_SOURCES) tests/kalloc_test.c -o $@
 
 build/callable_test: tests/callable_test.c $(HEADERS) Makefile
 	@mkdir -p build
 	$(HOST_CC) $(CPPFLAGS) $(HOST_CFLAGS) tests/callable_test.c -o $@
 
-build/proc_test: src/list.c src/buddy_mm.c $(PROC_SOURCES) $(SCHED_SOURCES) tests/proc_test.c $(HEADERS) Makefile
+build/proc_test: $(LIST_SOURCE) $(MM_SOURCES) $(FS_SOURCES) $(PROC_SOURCES) $(SCHED_SOURCES) tests/proc_test.c $(HEADERS) Makefile
 	@mkdir -p build
-	$(HOST_CC) $(CPPFLAGS) $(HOST_CFLAGS) src/list.c src/buddy_mm.c $(PROC_SOURCES) $(SCHED_SOURCES) tests/proc_test.c -o $@
+	$(HOST_CC) $(CPPFLAGS) $(HOST_CFLAGS) $(LIST_SOURCE) $(MM_SOURCES) $(FS_SOURCES) $(PROC_SOURCES) $(SCHED_SOURCES) tests/proc_test.c -o $@
 
-build/mlfq_test: src/list.c src/buddy_mm.c $(PROC_SOURCES) $(SCHED_SOURCES) tests/mlfq_test.c $(HEADERS) Makefile
+build/mlfq_test: $(LIST_SOURCE) $(MM_SOURCES) $(FS_SOURCES) $(PROC_SOURCES) $(SCHED_SOURCES) tests/mlfq_test.c $(HEADERS) Makefile
 	@mkdir -p build
-	$(HOST_CC) $(CPPFLAGS) $(HOST_CFLAGS) src/list.c src/buddy_mm.c $(PROC_SOURCES) $(SCHED_SOURCES) tests/mlfq_test.c -o $@
+	$(HOST_CC) $(CPPFLAGS) $(HOST_CFLAGS) $(LIST_SOURCE) $(MM_SOURCES) $(FS_SOURCES) $(PROC_SOURCES) $(SCHED_SOURCES) tests/mlfq_test.c -o $@
 
 test: $(TESTS)
 	./build/list_test
 	./build/buddy_test
+	./build/kalloc_test
 	./build/callable_test
 	./build/proc_test
 	./build/mlfq_test

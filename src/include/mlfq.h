@@ -8,9 +8,9 @@
 #define MAX_LEVEL MLFQ_LEVELS
 
 struct mlfq_config {
-        uint64_t quantum[MLFQ_LEVELS];
-        uint64_t allotment[MLFQ_LEVELS];
-        uint64_t boost_interval; /* 0 disables periodic boosts. */
+        u64_t quantum[MLFQ_LEVELS];
+        u64_t allotment[MLFQ_LEVELS];
+        u64_t boost_interval; /* 0 disables periodic boosts. */
 };
 
 enum mlfq_stop { MLFQ_YIELD, MLFQ_PREEMPT, MLFQ_BLOCK, MLFQ_EXIT };
@@ -23,8 +23,8 @@ struct mlfq {
         struct proc_table *table;
         struct mlfq_config config;
         struct list_meta queues[MLFQ_LEVELS];
-        uint64_t ticks;
-        uint64_t boost_elapsed;
+        u64_t ticks;
+        u64_t boost_elapsed;
         int reschedule;
         struct context dispatcher;
         enum mlfq_stop pending;
